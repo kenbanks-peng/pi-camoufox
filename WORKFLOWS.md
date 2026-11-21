@@ -64,7 +64,10 @@ returns promptly without preempting existing primitives and never later launches
 
 Reports contain categories, step indices, ordered durations, nonsecret settings,
 fill-independent workflow identity, and runtime versions. Raw errors, call logs,
-URLs, headers, content and console text are omitted. Console evidence is counts
+URLs, headers, content and console text are omitted. Navigation failures report
+`dns-failed` for recognized Firefox host/proxy resolution errors and `network-failed`
+for recognized connection, offline and transport errors. Unknown errors remain
+`execution-failed`; raw messages are never included. Console evidence is counts
 by normalized severity; network is limited to 32 method/status/resource-type rows.
 
 Artifacts default off. Set artifacts: {"screenshot":true,"trace":true} inside the

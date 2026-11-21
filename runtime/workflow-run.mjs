@@ -14,6 +14,15 @@ export function bounded(p, ms, signal) {
     Promise.resolve(p).then(v=>finish(resolve,v),e=>finish(reject,e));
   });
 }
+// Match only the driver's navigation-error prefix, never URLs or call-log text.
+// Unknown errors remain generic; reports expose fixed categories, not messages.
+function navigationFailure(error) {
+  const code = /^page\.goto: (NS_ERROR_[A-Z_]+)(?=\s|$)/.exec(error?.message ?? '')?.[1];
+  if (['NS_ERROR_UNKNOWN_HOST', 'NS_ERROR_UNKNOWN_PROXY_HOST'].includes(code)) return 'dns-failed';
+  if (['NS_ERROR_CONNECTION_REFUSED', 'NS_ERROR_CONNECTION_RESET', 'NS_ERROR_NET_RESET',
+    'NS_ERROR_NET_INTERRUPT', 'NS_ERROR_NET_TIMEOUT', 'NS_ERROR_OFFLINE',
+    'NS_ERROR_PROXY_CONNECTION_REFUSED'].includes(code)) return 'network-failed';
+}
 const methods = new Set(['GET','POST','PUT','DELETE','PATCH','HEAD','OPTIONS']);
 const resources = new Set(['document','stylesheet','image','media','font','script','xhr','fetch','websocket','other']);
 /** @param {any} w @param {any} options @returns {Promise<any>} */
@@ -22,7 +31,7 @@ export async function runWorkflow(w,{signal,deadline,poison,diagnosticProfile,pr
   const began=Date.now();
   deadline ??= began+(w.overallMs??LIMITS.overallMs);
   const report={version:1,identity:identity(w),configuration:{mode:w.start.mode,headless:!process.env.PI_BROWSER_HEADFUL,stepMs:w.stepMs??LIMITS.stepMs,overallMs:w.overallMs??LIMITS.overallMs},versions:{node:process.versions.node},outcomes:[],category:'success',evidence:{console:{},network:[]}};
-  let context, profile, temporary=false, unsupported=false, page, artifacts;
+  let context, profile, temporary=false, unsupported=false, page, artifacts, stepFailure;
   let rejectUnsupported;
   const unsupportedSignal=new Promise((_,reject)=>{rejectUnsupported=reject;});
   unsupportedSignal.catch(()=>{});
@@ -81,9 +90,12 @@ export async function runWorkflow(w,{signal,deadline,poison,diagnosticProfile,pr
         await bounded(Promise.race([executeStep(page,w.steps[i],stepBudget),unsupportedSignal]),stepBudget,signal);
         if(unsupported)throw Error('unsupported-behavior');
         report.outcomes.push({step:i,category:'success',durationMs:Date.now()-start});
-      } catch(e) { report.outcomes.push({step:i,category:fail(e),durationMs:Date.now()-start}); throw e; }
+      } catch(e) {
+        stepFailure=(w.steps[i].action==='goto' && navigationFailure(e)) || fail(e);
+        report.outcomes.push({step:i,category:stepFailure,durationMs:Date.now()-start}); throw e;
+      }
     }
-  } catch(e) { report.category=fail(e); }
+  } catch(e) { report.category=stepFailure ?? fail(e); }
   finally {
     const evidenceEnd=Date.now()+LIMITS.cleanupMs;
     try {
