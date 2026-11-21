@@ -34,9 +34,12 @@ bit persists within the session. `browser_close` allows later relaunch;
 shutdown closes the context without deleting storage.
 
 Cookies, localStorage and IndexedDB persist in
-`~/.pi/agent/extensions/browser/.profile`. Set `PI_BROWSER_PROFILE` to an
-absolute directory to override it. A fresh directory starts empty, but is not
-automatically deleted. Chromium profiles, migration, concurrent profile use,
+`$XDG_DATA_HOME/pi-camoufox/profile` (default
+`~/.local/share/pi-camoufox/profile`). Empty or relative `XDG_DATA_HOME` values
+fall back to `~/.local/share`. Set `PI_BROWSER_PROFILE` to an absolute directory
+to override it. The profile includes browser-managed caches. Old profiles under
+`~/.pi/agent/extensions/browser/.profile` are not migrated automatically.
+A fresh directory starts empty, but is not automatically deleted. Chromium profiles, migration, concurrent profile use,
 and cross-browser/profile-version compatibility are unsupported.
 
 Default: headless, 1280×800 viewport. Set `PI_BROWSER_HEADFUL=1` before starting

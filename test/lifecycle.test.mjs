@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
 import { stripTypeScriptTypes } from 'node:module';
 import { readFile, mkdtemp, rm } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 async function harness(prepare, entries = [], launchTimeout, workflowRun) {
@@ -65,6 +65,47 @@ function fake() {
     return () => { pending = null; resolve(42); };
   } };
 }
+
+test('persistent profile uses XDG data home with an explicit override', async () => {
+  const keys = ['PI_BROWSER_PROFILE', 'XDG_DATA_HOME'];
+  const saved = Object.fromEntries(keys.map(key => [key, process.env[key]]));
+  const fallback = join(homedir(), '.local', 'share', 'pi-camoufox', 'profile');
+  try {
+    for (const [xdg, override, expected] of [
+      [undefined, undefined, fallback],
+      ['', undefined, fallback],
+      ['relative/data', undefined, fallback],
+      ['/tmp/pi-xdg-data', undefined, '/tmp/pi-xdg-data/pi-camoufox/profile'],
+      ['/tmp/pi-xdg-data', '/tmp/pi-explicit-profile', '/tmp/pi-explicit-profile'],
+    ]) {
+      for (const [key, value] of [['XDG_DATA_HOME', xdg], ['PI_BROWSER_PROFILE', override]]) {
+        if (value === undefined) delete process.env[key]; else process.env[key] = value;
+      }
+      const f = fake();
+      let actual;
+      const h = await harness(async () => {
+        const prepared = await f.prepare();
+        const launch = prepared.firefox.launchPersistentContext;
+        prepared.firefox.launchPersistentContext = (profile, options) => {
+          actual = profile;
+          return launch(profile, options);
+        };
+        return prepared;
+      });
+      try {
+        await h.command('on');
+        await h.call('eval', { expression: '42' });
+        assert.equal(actual, expected);
+      } finally {
+        await h.shutdown();
+      }
+    }
+  } finally {
+    for (const key of keys) {
+      if (saved[key] === undefined) delete process.env[key]; else process.env[key] = saved[key];
+    }
+  }
+});
 
 test('default-off, restore latest bit, aliases, close and shutdown serialize with queued tools', async () => {
   const f = fake(), h = await harness(f.prepare);

@@ -29,7 +29,7 @@ import { validateWorkflow, LIMITS } from "./runtime/workflow.mjs";
 import { loadWorkflow } from "./runtime/workflow-load.mjs";
 import { prepareBrowser } from "./runtime/browser.mjs";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { isAbsolute, join } from "node:path";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
@@ -137,9 +137,11 @@ export default function browserExtension(pi: ExtensionAPI) {
   const consoleBuf: ConsoleEntry[] = [];
   const netBuf: NetEntry[] = [];
 
+  // XDG base directories must be absolute; empty/relative values use the default.
+  const dataHome = process.env.XDG_DATA_HOME;
   const profileDir =
     process.env.PI_BROWSER_PROFILE ??
-    join(homedir(), ".pi", "agent", "extensions", "browser", ".profile");
+    join(dataHome && isAbsolute(dataHome) ? dataHome : join(homedir(), ".local", "share"), "pi-camoufox", "profile");
   const headless = !process.env.PI_BROWSER_HEADFUL;
 
   const observedPages = new WeakSet<Page>();
