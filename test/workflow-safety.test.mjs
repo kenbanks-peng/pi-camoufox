@@ -46,3 +46,13 @@ test('evidence allowlists metadata and capture failures preserve primary failure
  assert.equal(r.category,'execution-failed');assert.equal(r.capture,'capture-failed');assert.ok(!JSON.stringify(r).includes('credential'));
  assert.deepEqual(r.evidence,{console:{other:1},network:[{method:'OTHER',resourceType:'other',status:0}]});
 });
+
+test('temporary creation failure and late fulfillment are observed and cleaned',async()=>{
+ const {mkdtemp}=await import('node:fs/promises');
+ const f=fake({delay:1});
+ const failed=await runWorkflow(flow(),{prepare:f.prepare,makeTemp:async()=>{throw Error('filesystem-private');},poison:()=>assert.fail()});
+ assert.equal(failed.category,'execution-failed');
+ let directory;
+ const late=await runWorkflow(flow(),{deadline:Date.now()+10,prepare:f.prepare,makeTemp:async prefix=>{await new Promise(r=>setTimeout(r,25));directory=await mkdtemp(prefix);return directory;},poison:()=>assert.fail()});
+ assert.equal(late.category,'timeout');await new Promise(r=>setTimeout(r,60));await assert.rejects(stat(directory));
+});

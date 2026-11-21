@@ -17,7 +17,7 @@ export function bounded(p, ms, signal) {
 const methods = new Set(['GET','POST','PUT','DELETE','PATCH','HEAD','OPTIONS']);
 const resources = new Set(['document','stylesheet','image','media','font','script','xhr','fetch','websocket','other']);
 /** @param {any} w @param {any} options */
-export async function runWorkflow(w,{signal,deadline,poison,diagnosticProfile,prepare=prepareCamoufox} = {}) {
+export async function runWorkflow(w,{signal,deadline,poison,diagnosticProfile,prepare=prepareCamoufox,makeTemp=mkdtemp} = {}) {
   validateWorkflow(w);
   const began=Date.now();
   deadline ??= began+(w.overallMs??LIMITS.overallMs);
@@ -27,6 +27,17 @@ export async function runWorkflow(w,{signal,deadline,poison,diagnosticProfile,pr
   const unsupportedSignal=new Promise((_,reject)=>{rejectUnsupported=reject;});
   unsupportedSignal.catch(()=>{});
   const unsupportedEvent=()=>{unsupported=true;rejectUnsupported(Error('unsupported-behavior'));};
+  async function temporaryDirectory(prefix) {
+    const creation=makeTemp(join(tmpdir(),prefix));
+    try { return await phase(creation); }
+    catch(error) {
+      // No process owns a directory whose creation has not returned. Observe
+      // late fulfillment and bound cleanup independently without an unhandled
+      // derived rejection or holding the browser operation queue.
+      creation.then(p=>bounded(rm(p,{recursive:true,force:true}),LIMITS.cleanupMs).catch(()=>{}),()=>{}).catch(()=>{});
+      throw error;
+    }
+  }
   const remaining=()=>Math.max(1,deadline-Date.now());
   const phase=p=>bounded(p,remaining(),signal);
   const fail=e => e?.message==='canceled'?'canceled':e?.message==='unsupported-behavior'?'unsupported-behavior':e?.message==='ambiguity'||e?.message?.includes('strict mode violation')?'ambiguity':e?.message==='timeout'||e?.name==='TimeoutError'||e?.message==='assertion-timeout'?'timeout':'execution-failed';
@@ -35,9 +46,7 @@ export async function runWorkflow(w,{signal,deadline,poison,diagnosticProfile,pr
     if (Date.now()>=deadline) throw Error('timeout');
     const prepared=await phase(prepare({headless:report.configuration.headless}));
     report.versions={...report.versions,...prepared.versions};
-    if (w.start.mode==='fresh') { temporary=true; const creation=mkdtemp(join(tmpdir(),'pi-workflow-'));
-      creation.then(p=>{if(!profile) setTimeout(()=>{if(!profile)rm(p,{recursive:true,force:true}).catch(()=>{});},0);});
-      profile=await phase(creation); }
+    if (w.start.mode==='fresh') { temporary=true; profile=await temporaryDirectory('pi-workflow-'); }
     else {
       profile=await phase(realpath(w.start.profile));
       const diagnostic=await phase(realpath(diagnosticProfile).catch(()=>diagnosticProfile));
@@ -61,7 +70,7 @@ export async function runWorkflow(w,{signal,deadline,poison,diagnosticProfile,pr
       const req=res.request(), method=req.method(), resourceType=req.resourceType(), status=res.status();
       report.evidence.network.push({method:methods.has(method)?method:'OTHER',resourceType:resources.has(resourceType)?resourceType:'other',status:Number.isInteger(status)&&status>=100&&status<=599?status:0});
     });
-    if(w.artifacts?.trace||w.artifacts?.screenshot) artifacts=await phase(mkdtemp(join(tmpdir(),'pi-workflow-artifacts-')));
+    if(w.artifacts?.trace||w.artifacts?.screenshot) artifacts=await temporaryDirectory('pi-workflow-artifacts-');
     if(w.artifacts?.trace) await phase(context.tracing.start({screenshots:true,snapshots:true}));
     for(let i=0;i<w.steps.length;i++){
       const start=Date.now();
