@@ -16,7 +16,7 @@ export function bounded(p, ms, signal) {
 }
 const methods = new Set(['GET','POST','PUT','DELETE','PATCH','HEAD','OPTIONS']);
 const resources = new Set(['document','stylesheet','image','media','font','script','xhr','fetch','websocket','other']);
-/** @param {any} w @param {any} options */
+/** @param {any} w @param {any} options @returns {Promise<any>} */
 export async function runWorkflow(w,{signal,deadline,poison,diagnosticProfile,prepare=prepareCamoufox,makeTemp=mkdtemp} = {}) {
   validateWorkflow(w);
   const began=Date.now();
