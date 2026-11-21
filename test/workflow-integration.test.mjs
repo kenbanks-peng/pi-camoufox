@@ -5,16 +5,16 @@ import { mkdtemp, mkdir, writeFile, rm, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import extension from '../index.ts';
-import { prepareCamoufox } from '../runtime/camoufox.mjs';
+import { prepareBrowser } from '../runtime/browser.mjs';
 import { executeStep } from '../runtime/workflow.mjs';
 import { runWorkflow } from '../runtime/workflow-run.mjs';
 export const fixture='<label>User<input id="user"></label><label>Password<input type="password"></label><button onclick="localStorage.setItem(\'login\',\'yes\');document.querySelector(\'h1\').textContent=\'Verified\';console.error(\'private-password\')">Sign in</button><h1>Login</h1>';
-test('local inline and named login, safe failure, artifacts and fresh isolation',{skip:!process.env.PI_CAMOUFOX_EXECUTABLE},async()=>{
+test('local inline and named login, safe failure, artifacts and fresh isolation',{skip:!process.env.PI_BROWSER_TEST_INTEGRATION},async()=>{
  const server=createServer((_q,res)=>{res.setHeader('content-type','text/html');res.end(fixture);});await new Promise(r=>server.listen(0,'127.0.0.1',r));
  const url='http://127.0.0.1:'+server.address().port;
  const w={version:1,start:{mode:'fresh'},stepMs:1000,steps:[{action:'goto',url},{action:'fill',target:{label:'User'},value:'private-user'},{action:'fill',target:{label:'Password'},value:'private-password'},{action:'click',target:{role:'button',name:'Sign in'}},{action:'expect',kind:'text',target:{css:'h1'},value:'Verified'}]};
  const root=await mkdtemp(join(tmpdir(),'workflow-local-'));
- const previousProfile=process.env.PI_CAMOUFOX_PROFILE;process.env.PI_CAMOUFOX_PROFILE=join(root,'diagnostic');
+ const previousProfile=process.env.PI_BROWSER_PROFILE;process.env.PI_BROWSER_PROFILE=join(root,'diagnostic');
  try{
  let r=await runWorkflow(w,{poison:()=>assert.fail()});assert.equal(r.category,'success');
  const tools=new Map(),events=new Map();let command;
@@ -31,14 +31,14 @@ test('local inline and named login, safe failure, artifacts and fresh isolation'
  for(let i=0;i<2;i++){r=await runWorkflow({version:1,start:{mode:'fresh'},steps:[{action:'goto',url},{action:'expect',kind:'text',target:{css:'h1'},value:'Login'}]},{poison:()=>assert.fail()});assert.equal(r.category,'success');}
  assert.equal((await tools.get('browser_eval').execute('test',{expression:"localStorage.getItem('diagnostic')"})).details.result,'preserved');
  await events.get('session_shutdown')();
- }finally{if(previousProfile===undefined)delete process.env.PI_CAMOUFOX_PROFILE;else process.env.PI_CAMOUFOX_PROFILE=previousProfile;delete process.env.PI_WORKFLOW_TEST_PASSWORD;await rm(root,{recursive:true,force:true});await new Promise(r=>server.close(r));}
+ }finally{if(previousProfile===undefined)delete process.env.PI_BROWSER_PROFILE;else process.env.PI_BROWSER_PROFILE=previousProfile;delete process.env.PI_WORKFLOW_TEST_PASSWORD;await rm(root,{recursive:true,force:true});await new Promise(r=>server.close(r));}
 });
 
-test('real semantic assertions and persistent ownership',{skip:!process.env.PI_CAMOUFOX_EXECUTABLE},async()=>{
+test('real semantic assertions and persistent ownership',{skip:!process.env.PI_BROWSER_TEST_INTEGRATION},async()=>{
  const root=await mkdtemp(join(tmpdir(),'workflow-persistent-'));
  const profile=join(root,'selected');await mkdir(profile);
  const diagnostic=join(root,'diagnostic');await mkdir(diagnostic);
- const {firefox,options}=await prepareCamoufox();
+ const {firefox,options}=await prepareBrowser();
  const context=await firefox.launchPersistentContext(profile,{...options,timeout:30000});
  try{
  const page=context.pages()[0];

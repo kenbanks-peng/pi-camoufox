@@ -1,4 +1,4 @@
-// Usage: node spikes/camoufox.mjs /path/to/camoufox/python /installed/.../camoufox
+// Usage: node spikes/browser.mjs /path/to/browser/python /installed/.../browser
 import { execFileSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { mkdtemp, rm } from 'node:fs/promises';
@@ -8,14 +8,14 @@ import { createServer } from 'node:http';
 import assert from 'node:assert/strict';
 
 const [python, binary] = process.argv.slice(2);
-if (!python || !binary) throw Error('Provide Camoufox Python and installed executable paths');
-const config = JSON.parse(execFileSync(python, [new URL('./camoufox-options.py', import.meta.url).pathname, binary], {encoding:'utf8', timeout:60000}));
+if (!python || !binary) throw Error('Provide Browser Python and installed executable paths');
+const config = JSON.parse(execFileSync(python, [new URL('./browser-options.py', import.meta.url).pathname, binary], {encoding:'utf8', timeout:60000}));
 const require = createRequire(import.meta.url);
 const driver = require(config.driver);
 const local = require('playwright-core');
 console.log(JSON.stringify({python:config.versions, node:process.version, localPlaywright:require('playwright-core/package.json').version, bundledPlaywright:require(join(config.driver,'package.json')).version, binary}));
-const profile = await mkdtemp(join(tmpdir(), 'camoufox-spike-'));
-const http = createServer((req,res) => res.end('<title>Camoufox spike</title><h1>local fixture</h1>'));
+const profile = await mkdtemp(join(tmpdir(), 'browser-spike-'));
+const http = createServer((req,res) => res.end('<title>Browser spike</title><h1>local fixture</h1>'));
 await new Promise(resolve=>http.listen(0,'127.0.0.1',resolve));
 const url = 'http://127.0.0.1:' + http.address().port;
 try {
@@ -24,7 +24,7 @@ try {
     try {
       const page = await context.newPage();
       await page.goto(url);
-      assert.equal(await page.title(), 'Camoufox spike');
+      assert.equal(await page.title(), 'Browser spike');
       const stored = await page.evaluate(() => localStorage.getItem('spike'));
       if (headless === false || stored) assert.equal(stored,'persisted');
       await page.evaluate(() => localStorage.setItem('spike','persisted'));

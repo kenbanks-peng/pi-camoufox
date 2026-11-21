@@ -1,7 +1,7 @@
 import { mkdtemp, rm, realpath, stat, chmod } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { prepareCamoufox } from './camoufox.mjs';
+import { prepareBrowser } from './browser.mjs';
 import { validateWorkflow, identity, executeStep, LIMITS } from './workflow.mjs';
 
 export function bounded(p, ms, signal) {
@@ -17,7 +17,7 @@ export function bounded(p, ms, signal) {
 const methods = new Set(['GET','POST','PUT','DELETE','PATCH','HEAD','OPTIONS']);
 const resources = new Set(['document','stylesheet','image','media','font','script','xhr','fetch','websocket','other']);
 /** @param {any} w @param {any} options @returns {Promise<any>} */
-export async function runWorkflow(w,{signal,deadline,poison,diagnosticProfile,prepare=prepareCamoufox,makeTemp=mkdtemp} = {}) {
+export async function runWorkflow(w,{signal,deadline,poison,diagnosticProfile,prepare=prepareBrowser,makeTemp=mkdtemp} = {}) {
   validateWorkflow(w);
   const began=Date.now();
   deadline ??= began+(w.overallMs??LIMITS.overallMs);

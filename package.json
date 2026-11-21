@@ -1,20 +1,19 @@
 {
-  "name": "@npm-ken/pi-camoufox",
+  "name": "@npm-ken/pi-browser",
   "version": "0.1.1",
   "type": "module",
-  "description": "Persistent Camoufox browser tools for pi using an explicitly configured Python-bundled Playwright driver.",
+  "description": "Persistent browser tools for pi using a Python-bundled Playwright driver.",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/kenbanks-peng/pi-camoufox.git"
+    "url": "git+https://github.com/kenbanks-peng/pi-browser.git"
   },
-  "homepage": "https://github.com/kenbanks-peng/pi-camoufox#readme",
+  "homepage": "https://github.com/kenbanks-peng/pi-browser#readme",
   "bugs": {
-    "url": "https://github.com/kenbanks-peng/pi-camoufox/issues"
+    "url": "https://github.com/kenbanks-peng/pi-browser/issues"
   },
   "keywords": [
     "pi-package",
     "pi-extension",
-    "camoufox",
     "browser"
   ],
   "publishConfig": {
@@ -23,7 +22,7 @@
   },
   "files": [
     "index.ts",
-    "runtime/camoufox.mjs",
+    "runtime/browser.mjs",
     "runtime/options.py",
     "runtime/README.md",
     "runtime/workflow.mjs",
@@ -42,10 +41,10 @@
   "scripts": {
     "prepublishOnly": "npm run typecheck && npm run test:fast",
     "test": "node --test --test-concurrency=1 test/*.test.mjs",
-    "check:runtime": "node runtime/camoufox.mjs",
+    "check:runtime": "node runtime/browser.mjs",
     "typecheck": "tsc --noEmit",
-    "test:fast": "env -u PI_CAMOUFOX_EXECUTABLE -u PI_CAMOUFOX_PYTHON node --test --test-concurrency=1 test/*.test.mjs",
-    "test:integration": "node -e \"if (!process.env.PI_CAMOUFOX_EXECUTABLE || !process.env.PI_CAMOUFOX_PYTHON) process.exit(1)\" && node --test --test-concurrency=1 test/*.test.mjs"
+    "test:fast": "node --test --test-concurrency=1 test/*.test.mjs",
+    "test:integration": "PI_BROWSER_TEST_INTEGRATION=1 node --test --test-concurrency=1 test/*.test.mjs"
   },
   "devDependencies": {
     "@earendil-works/pi-coding-agent": "^1.6.0",

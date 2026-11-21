@@ -1,4 +1,4 @@
-# Camoufox runtime
+# Browser runtime
 
 Python generates fresh fingerprint/launch options, then exits. Node owns a
 persistent Firefox/Juggler context using that Python installation's bundled
@@ -36,15 +36,18 @@ here. Default addons are excluded; setup does not download them.
 ## Configure and diagnose
 
 ```sh
-export PI_CAMOUFOX_PYTHON=/absolute/path/to/environment/bin/python
-export PI_CAMOUFOX_EXECUTABLE=/absolute/path/to/Camoufox.app/Contents/MacOS/camoufox
 npm run check:runtime
 ```
 
-Both paths are mandatory; no PATH/cache discovery. This host's default Python
-cache lookup selects a different, missing installation. `check:runtime` prints
-versions, resolved executable, mode and `downloads:false`; it prepares options
-but does not launch a browser. Integration tests perform real launches.
+All environment variables are optional. Put the upstream `camoufox` CLI on PATH;
+its launcher selects the Python environment. Without that launcher, `python3`
+on PATH is used. The Python package locates an existing browser with downloads
+disabled. No automatic installation or update is performed.
+
+Optional `PI_BROWSER_PYTHON` and `PI_BROWSER_EXECUTABLE` overrides accept paths
+or command names. `PI_BROWSER_PROFILE` overrides storage and
+`PI_BROWSER_HEADFUL` enables a visible window when nonempty.
+`check:runtime` prepares options without launching; integration tests launch.
 
 Missing executables, browser metadata, unsupported pins and damaged bundled
 drivers fail with remediation. Canvas/WebGL privacy warnings are surfaced;

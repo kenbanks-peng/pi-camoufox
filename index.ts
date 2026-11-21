@@ -1,5 +1,5 @@
 /**
- * Browser extension — Playwright-driven Camoufox pi can drive.
+ * Browser extension — Playwright-driven Browser pi can drive.
  *
  * Exposes a small set of tools the LLM can call to debug a live web app:
  *   - browser_goto         navigate
@@ -20,14 +20,14 @@
  *
  * Driver types only come from npm; runtime uses Python-bundled Playwright.
  * Setup: see runtime/README.md. Explicit installed Python and binary required.
- * PI_BROWSER_HEADFUL enables a visible window; PI_CAMOUFOX_PROFILE overrides
- * the Camoufox-only persistent profile. Never point it at a Chromium profile.
+ * PI_BROWSER_HEADFUL enables a visible window; PI_BROWSER_PROFILE overrides
+ * the Browser-only persistent profile. Never point it at a Chromium profile.
  */
 
 import { runWorkflow, bounded } from "./runtime/workflow-run.mjs";
 import { validateWorkflow, LIMITS } from "./runtime/workflow.mjs";
 import { loadWorkflow } from "./runtime/workflow-load.mjs";
-import { prepareCamoufox } from "./runtime/camoufox.mjs";
+import { prepareBrowser } from "./runtime/browser.mjs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { mkdtempSync } from "node:fs";
@@ -138,8 +138,8 @@ export default function browserExtension(pi: ExtensionAPI) {
   const netBuf: NetEntry[] = [];
 
   const profileDir =
-    process.env.PI_CAMOUFOX_PROFILE ??
-    join(homedir(), ".pi", "agent", "extensions", "camoufox", ".profile");
+    process.env.PI_BROWSER_PROFILE ??
+    join(homedir(), ".pi", "agent", "extensions", "browser", ".profile");
   const headless = !process.env.PI_BROWSER_HEADFUL;
 
   const observedPages = new WeakSet<Page>();
@@ -158,7 +158,7 @@ export default function browserExtension(pi: ExtensionAPI) {
     if (page && !page.isClosed()) return page;
 
     if (!context) {
-      const { firefox, options, warnings } = await prepareCamoufox({ headless });
+      const { firefox, options, warnings } = await prepareBrowser({ headless });
       if (warnings) console.warn(warnings);
       context = await firefox.launchPersistentContext(profileDir, {
         ...options,
@@ -367,7 +367,7 @@ export default function browserExtension(pi: ExtensionAPI) {
     name: "browser_goto",
     label: "Browser Goto",
     description:
-      "Navigate the persistent Camoufox to a URL. Returns final URL and HTTP status. Cookies + localStorage persist across calls.",
+      "Navigate the persistent Browser to a URL. Returns final URL and HTTP status. Cookies + localStorage persist across calls.",
     promptSnippet:
       "Open a URL in a persistent headless browser to inspect a live web app's DOM, storage, network, and console — instead of asking the user to copy from devtools",
     promptGuidelines: [

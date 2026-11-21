@@ -8,14 +8,18 @@ from importlib.metadata import version
 
 
 def main():
-    binary = Path(sys.argv[1]).resolve(strict=True)
+    if sys.argv[1]:
+        binary = Path(sys.argv[1]).resolve(strict=True)
+    else:
+        from camoufox.pkgman import camoufox_path, launch_path
+        binary = Path(launch_path(camoufox_path(download_if_missing=False))).resolve(strict=True)
     headless = sys.argv[2] == 'headless'
     if not binary.is_file() or not os.access(binary, os.X_OK):
         raise ValueError('binary is not an executable file')
     metadata = next((parent / 'version.json' for parent in binary.parents
                      if (parent / 'version.json').is_file()), None)
     if metadata is None:
-        raise ValueError('missing browser version.json beside installation; select a complete installed Camoufox build')
+        raise ValueError('missing browser version.json beside installation; select a complete installed Browser build')
     browser = json.loads(metadata.read_text())
     if (browser.get('version'), browser.get('build'), browser.get('interface')) != ('158.0.1', 'beta.41', 1):
         raise ValueError('unsupported browser build; select installed 158.0.1-beta.41 (interface 1); do not auto-update')
@@ -46,5 +50,5 @@ def main():
 try:
     main()
 except Exception as error:
-    print(f'Camoufox setup: {error}. Configure PI_CAMOUFOX_PYTHON and PI_CAMOUFOX_EXECUTABLE; no automatic downloads.', file=sys.stderr)
+    print(f'Browser setup: {error}. Install tools on PATH or override PI_BROWSER_PYTHON and PI_BROWSER_EXECUTABLE; no automatic downloads.', file=sys.stderr)
     sys.exit(1)

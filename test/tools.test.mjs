@@ -18,7 +18,7 @@ test('actual TypeScript module import and real TypeBox registration', () => {
   assert.equal(h.tools.size, 9);
   for (const t of h.tools.values()) { assert.equal(t.parameters.type, 'object'); assert.equal(typeof t.execute, 'function'); }
 });
-test('eight tools against deterministic HTTP fixture', { skip: !process.env.PI_CAMOUFOX_EXECUTABLE }, async () => {
+test('eight tools against deterministic HTTP fixture', { skip: !process.env.PI_BROWSER_TEST_INTEGRATION }, async () => {
   const server = createServer((req, res) => {
     if (req.url === '/redirect') { res.writeHead(302, { location: '/fixture' }); res.end(); return; }
     if (req.url === '/fail') { req.socket.destroy(); return; }
@@ -29,8 +29,8 @@ test('eight tools against deterministic HTTP fixture', { skip: !process.env.PI_C
   });
   await new Promise(r => server.listen(0, '127.0.0.1', r));
   const url = 'http://127.0.0.1:' + server.address().port;
-  const profile = await mkdtemp(join(tmpdir(), 'camoufox-tools-'));
-  const old = process.env.PI_CAMOUFOX_PROFILE; process.env.PI_CAMOUFOX_PROFILE = profile;
+  const profile = await mkdtemp(join(tmpdir(), 'browser-tools-'));
+  const old = process.env.PI_BROWSER_PROFILE; process.env.PI_BROWSER_PROFILE = profile;
   const h = register(), ctx = { sessionManager: { getEntries: () => [] }, ui: { notify() {} } };
   const evaluate = async expression => (await h.call('eval', { expression })).details.result;
   async function networkReady(filter) {
@@ -95,7 +95,7 @@ test('eight tools against deterministic HTTP fixture', { skip: !process.env.PI_C
     await h.call('close'); assert.equal(await evaluate('42'), 42);
   } finally {
     await h.events.get('session_shutdown')(); server.close();
-    if (old === undefined) delete process.env.PI_CAMOUFOX_PROFILE; else process.env.PI_CAMOUFOX_PROFILE = old;
+    if (old === undefined) delete process.env.PI_BROWSER_PROFILE; else process.env.PI_BROWSER_PROFILE = old;
     await rm(profile, { recursive: true, force: true });
   }
 });

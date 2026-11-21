@@ -8,8 +8,8 @@ import { join } from 'node:path';
 
 async function harness(prepare, entries = [], launchTimeout, workflowRun) {
   let source = stripTypeScriptTypes(await readFile(new URL('../index.ts', import.meta.url), 'utf8'));
-  source = source.replace('import { prepareCamoufox } from "./runtime/camoufox.mjs";',
-    prepare ? 'const prepareCamoufox = globalThis.lifecyclePrepare;' : 'import { prepareCamoufox } from ' + JSON.stringify(new URL('../runtime/camoufox.mjs', import.meta.url).href) + ';');
+  source = source.replace('import { prepareBrowser } from "./runtime/browser.mjs";',
+    prepare ? 'const prepareBrowser = globalThis.lifecyclePrepare;' : 'import { prepareBrowser } from ' + JSON.stringify(new URL('../runtime/browser.mjs', import.meta.url).href) + ';');
   source = source.replaceAll(/from "(\.\/runtime\/[^"]+)"/g, (_m, path) => 'from ' + JSON.stringify(new URL('../' + path.slice(2), import.meta.url).href));
   source = source.replace('import { Type } from "typebox";', 'const Type = new Proxy({}, { get: () => (...args) => args });');
   source = source.replace('const observedPages =', 'pi.testPage = ensurePage; const observedPages =');
@@ -138,10 +138,10 @@ test('setup/launch/timeout failures retry; crash and disconnect replace stale ha
   await unrelated.shutdown();
 });
 
-test('installed macOS browser lifecycle: races, external context close, page crash recovery, shutdown', { skip: !process.env.PI_CAMOUFOX_EXECUTABLE }, async () => {
-  const profile = await mkdtemp(join(tmpdir(), 'camoufox-lifecycle-'));
-  const saved = process.env.PI_CAMOUFOX_PROFILE;
-  process.env.PI_CAMOUFOX_PROFILE = profile;
+test('installed macOS browser lifecycle: races, external context close, page crash recovery, shutdown', { skip: !process.env.PI_BROWSER_TEST_INTEGRATION }, async () => {
+  const profile = await mkdtemp(join(tmpdir(), 'browser-lifecycle-'));
+  const saved = process.env.PI_BROWSER_PROFILE;
+  process.env.PI_BROWSER_PROFILE = profile;
   let h;
   try {
     const timed = await harness(undefined, [], 1);
@@ -172,7 +172,7 @@ test('installed macOS browser lifecycle: races, external context close, page cra
     assert.equal(owned.isConnected(), false);
   } finally {
     await h?.shutdown();
-    if (saved === undefined) delete process.env.PI_CAMOUFOX_PROFILE; else process.env.PI_CAMOUFOX_PROFILE = saved;
+    if (saved === undefined) delete process.env.PI_BROWSER_PROFILE; else process.env.PI_BROWSER_PROFILE = saved;
     await rm(profile, { recursive: true, force: true });
   }
 });
