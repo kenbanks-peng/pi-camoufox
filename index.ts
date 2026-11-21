@@ -24,6 +24,9 @@
  * the Camoufox-only persistent profile. Never point it at a Chromium profile.
  */
 
+import { runWorkflow, bounded } from "./runtime/workflow-run.mjs";
+import { validateWorkflow, LIMITS } from "./runtime/workflow.mjs";
+import { loadWorkflow } from "./runtime/workflow-load.mjs";
 import { prepareCamoufox } from "./runtime/camoufox.mjs";
 import { homedir } from "node:os";
 import { join } from "node:path";
@@ -59,6 +62,7 @@ type NetEntry = {
 
 const MAX_BUF = 1000;
 const BROWSER_TOOL_NAMES = [
+  "browser_run",
   "browser_goto",
   "browser_eval",
   "browser_console",
@@ -114,9 +118,11 @@ function filterHeaders(
 export default function browserExtension(pi: ExtensionAPI) {
   let opQueue: Promise<unknown> = Promise.resolve();
   let stopped = false;
+  let poisoned = false;
   let gateReady = false;
   function serialize<T>(fn: () => Promise<T>, control = false): Promise<T> {
     const next = opQueue.then(async () => {
+      if (poisoned) throw Error("Browser termination unconfirmed; fresh extension instance required. Do not reuse retained profiles without confirming termination.");
       if (!control && (stopped || (gateReady && !enabled))) {
         throw Error(stopped ? "Browser session shut down" : "Browser tools disabled; run /browser on");
       }
@@ -306,6 +312,51 @@ export default function browserExtension(pi: ExtensionAPI) {
 
   pi.on("session_shutdown", async () => {
     await serialize(async () => { stopped = true; await teardown(); }, true);
+  });
+
+  pi.registerTool({
+    name: "browser_run",
+    label: "Browser Run",
+    description: "Execute a validated v1 workflow atomically, from an explicit fresh or persistent profile. Prefer reviewed named workflows for credentials; inline values may persist in tool history. No retries or rollback.",
+    promptSnippet: "Run reviewed browser workflows in one invocation; use primitive tools for diagnostics.",
+    parameters: Type.Object({
+      workflow: Type.Optional(Type.Any()),
+      name: Type.Optional(Type.String()),
+      parameters: Type.Optional(Type.Record(Type.String(), Type.Any())),
+    }),
+    async execute(_id, params, signal, _update, ctx) {
+      const root = ctx.cwd;
+      const invocation = Date.now();
+      let workflow;
+      try {
+        if ((params.workflow === undefined) === (params.name === undefined) ||
+            (params.workflow !== undefined && params.parameters !== undefined)) throw Error();
+        workflow = params.name ? await bounded(loadWorkflow(root, params.name, params.parameters), 5000, signal) : validateWorkflow(params.workflow);
+      } catch {
+        const details = { version: 1, category: signal?.aborted ? "canceled" : "invalid-workflow" };
+        return { content: [{ type: "text", text: JSON.stringify(details) }], details, isError: true };
+      }
+      const deadline = invocation + (workflow.overallMs ?? LIMITS.overallMs);
+      let abandoned = false;
+      let started = false;
+      let notifyStarted!: () => void;
+      const hasStarted = new Promise<void>(resolve => { notifyStarted = resolve; });
+      const queued = serialize(async () => {
+        started = true; notifyStarted();
+        if (abandoned || signal?.aborted || Date.now() >= deadline) return { version: 1, category: signal?.aborted ? "canceled" : "timeout" };
+        return runWorkflow(workflow, { signal, deadline, diagnosticProfile: profileDir, poison: () => { poisoned = true; } });
+      });
+      queued.catch(() => { notifyStarted(); });
+      let details;
+      try {
+        try { await bounded(hasStarted, Math.max(1, deadline - Date.now()), signal); }
+        catch { if (!started) { abandoned = true; return { content: [{ type: "text", text: signal?.aborted ? "canceled" : "timeout" }], details: { version: 1, category: signal?.aborted ? "canceled" : "timeout" }, isError: true }; } }
+        details = await queued;
+      } catch {
+        details = { version: 1, category: poisoned ? "restart-required" : "unavailable" };
+      }
+      return { content: [{ type: "text", text: JSON.stringify(details) }], details, isError: details.category !== "success" };
+    },
   });
 
   pi.registerTool({

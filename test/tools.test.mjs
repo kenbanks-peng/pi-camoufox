@@ -15,7 +15,7 @@ function register() {
 }
 test('actual TypeScript module import and real TypeBox registration', () => {
   const h = register();
-  assert.equal(h.tools.size, 8);
+  assert.equal(h.tools.size, 9);
   for (const t of h.tools.values()) { assert.equal(t.parameters.type, 'object'); assert.equal(typeof t.execute, 'function'); }
 });
 test('eight tools against deterministic HTTP fixture', { skip: !process.env.PI_CAMOUFOX_EXECUTABLE }, async () => {

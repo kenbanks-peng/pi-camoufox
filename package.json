@@ -25,7 +25,10 @@
     "index.ts",
     "runtime/camoufox.mjs",
     "runtime/options.py",
-    "runtime/README.md"
+    "runtime/README.md",
+    "runtime/workflow.mjs",
+    "runtime/workflow-run.mjs",
+    "runtime/workflow-load.mjs"
   ],
   "pi": {
     "extensions": [
