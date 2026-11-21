@@ -10,6 +10,7 @@ test('extension persistent storage, modes, page reuse and single listeners', { s
   // Exercise the actual extension, stubbing only pi registration/schema metadata.
   let source = stripTypeScriptTypes(await readFile(new URL('../index.ts', import.meta.url), 'utf8'));
   source = source.replace('from "./runtime/camoufox.mjs"', 'from ' + JSON.stringify(new URL('../runtime/camoufox.mjs', import.meta.url).href));
+  source = source.replaceAll(/from "(\.\/runtime\/[^"]+)"/g, (_m, path) => 'from ' + JSON.stringify(new URL('../' + path.slice(2), import.meta.url).href));
   source = source.replace('import { Type } from "typebox";', 'const Type = new Proxy({}, { get: () => (...args) => args });');
   source = source.replace('const observedPages =', 'pi.testPage = ensurePage; const observedPages =');
   const { default: extension } = await import('data:text/javascript;base64,' + Buffer.from(source).toString('base64'));

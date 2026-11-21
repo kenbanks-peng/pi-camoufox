@@ -28,7 +28,8 @@
     "runtime/README.md",
     "runtime/workflow.mjs",
     "runtime/workflow-run.mjs",
-    "runtime/workflow-load.mjs"
+    "runtime/workflow-load.mjs",
+    "WORKFLOWS.md"
   ],
   "pi": {
     "extensions": [

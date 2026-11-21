@@ -94,3 +94,7 @@ npm run test:integration  # requires both runtime paths; serial, headless + visi
 
 See [test details and limits](test/README.md). `npm test` skips installed-browser
 checks when paths are absent; it is not a substitute for configured integration.
+
+## Workflow-first automation
+
+Use browser_run for reviewed procedures; see [WORKFLOWS.md](WORKFLOWS.md) for the v1 contract, named login example, secret inputs, budgets and artifact consent. Primitive tools remain available for diagnostics.

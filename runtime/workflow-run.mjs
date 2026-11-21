@@ -23,6 +23,10 @@ export async function runWorkflow(w,{signal,deadline,poison,diagnosticProfile,pr
   deadline ??= began+(w.overallMs??LIMITS.overallMs);
   const report={version:1,identity:identity(w),configuration:{mode:w.start.mode,headless:!process.env.PI_BROWSER_HEADFUL,stepMs:w.stepMs??LIMITS.stepMs,overallMs:w.overallMs??LIMITS.overallMs},versions:{node:process.versions.node},outcomes:[],category:'success',evidence:{console:{},network:[]}};
   let context, profile, temporary=false, unsupported=false, page, artifacts;
+  let rejectUnsupported;
+  const unsupportedSignal=new Promise((_,reject)=>{rejectUnsupported=reject;});
+  unsupportedSignal.catch(()=>{});
+  const unsupportedEvent=()=>{unsupported=true;rejectUnsupported(Error('unsupported-behavior'));};
   const remaining=()=>Math.max(1,deadline-Date.now());
   const phase=p=>bounded(p,remaining(),signal);
   const fail=e => e?.message==='canceled'?'canceled':e?.message==='unsupported-behavior'?'unsupported-behavior':e?.message==='ambiguity'||e?.message?.includes('strict mode violation')?'ambiguity':e?.message==='timeout'||e?.name==='TimeoutError'||e?.message==='assertion-timeout'?'timeout':'execution-failed';
@@ -31,10 +35,12 @@ export async function runWorkflow(w,{signal,deadline,poison,diagnosticProfile,pr
     if (Date.now()>=deadline) throw Error('timeout');
     const prepared=await phase(prepare({headless:report.configuration.headless}));
     report.versions={...report.versions,...prepared.versions};
-    if (w.start.mode==='fresh') { profile=await mkdtemp(join(tmpdir(),'pi-workflow-')); temporary=true; }
+    if (w.start.mode==='fresh') { temporary=true; const creation=mkdtemp(join(tmpdir(),'pi-workflow-'));
+      creation.then(p=>{if(!profile) setTimeout(()=>{if(!profile)rm(p,{recursive:true,force:true}).catch(()=>{});},0);});
+      profile=await phase(creation); }
     else {
-      profile=await realpath(w.start.profile);
-      const diagnostic=await realpath(diagnosticProfile).catch(()=>diagnosticProfile);
+      profile=await phase(realpath(w.start.profile));
+      const diagnostic=await phase(realpath(diagnosticProfile).catch(()=>diagnosticProfile));
       if (profile===diagnostic) throw Error('profile-conflict');
     }
     // A late launch remains owned: its completion closes the context, and poisons
@@ -44,8 +50,8 @@ export async function runWorkflow(w,{signal,deadline,poison,diagnosticProfile,pr
     launch.then(async c=>{ if (abandoned) { try { await c.close(); } catch {} } },()=>{});
     try { context=await phase(launch); } catch(e) { abandoned=true; poison(); report.cleanup='termination-unconfirmed; restart-required'; throw e; }
     page=context.pages()[0]??await phase(context.newPage());
-    context.on('page',()=>{unsupported=true;});
-    page.on('download',()=>{unsupported=true;});
+    context.on('page',unsupportedEvent);
+    page.on('download',unsupportedEvent);
     page.on('console',msg=>{
       const severity=['log','info','warning','error','debug'].includes(msg.type())?msg.type():'other';
       report.evidence.console[severity]=Math.min(1000,(report.evidence.console[severity]??0)+1);
@@ -55,14 +61,15 @@ export async function runWorkflow(w,{signal,deadline,poison,diagnosticProfile,pr
       const req=res.request(), method=req.method(), resourceType=req.resourceType(), status=res.status();
       report.evidence.network.push({method:methods.has(method)?method:'OTHER',resourceType:resources.has(resourceType)?resourceType:'other',status:Number.isInteger(status)&&status>=100&&status<=599?status:0});
     });
-    if(w.artifacts?.trace||w.artifacts?.screenshot) artifacts=await mkdtemp(join(tmpdir(),'pi-workflow-artifacts-'));
+    if(w.artifacts?.trace||w.artifacts?.screenshot) artifacts=await phase(mkdtemp(join(tmpdir(),'pi-workflow-artifacts-')));
     if(w.artifacts?.trace) await phase(context.tracing.start({screenshots:true,snapshots:true}));
     for(let i=0;i<w.steps.length;i++){
       const start=Date.now();
       report.step=i;
       try {
         if(unsupported)throw Error('unsupported-behavior');
-        await phase(executeStep(page,w.steps[i],Math.min(w.stepMs??LIMITS.stepMs,remaining())));
+        const stepBudget=Math.min(w.stepMs??LIMITS.stepMs,remaining());
+        await bounded(Promise.race([executeStep(page,w.steps[i],stepBudget),unsupportedSignal]),stepBudget,signal);
         if(unsupported)throw Error('unsupported-behavior');
         report.outcomes.push({step:i,category:'success',durationMs:Date.now()-start});
       } catch(e) { report.outcomes.push({step:i,category:fail(e),durationMs:Date.now()-start}); throw e; }
@@ -76,18 +83,18 @@ export async function runWorkflow(w,{signal,deadline,poison,diagnosticProfile,pr
         if(w.artifacts?.trace) await bounded(context.tracing.stop({path:join(artifacts,'trace.zip')}),Math.max(1,evidenceEnd-Date.now()));
         for(const file of ['failure.png','trace.zip']) {
           const path=join(artifacts,file);
-          const info=await stat(path).catch(()=>null);
-          if(info && info.size>16*1024*1024) {await rm(path);report.capture='size-limit';}
-          else if(info) await chmod(path,0o600);
+          const info=await bounded(stat(path).catch(()=>null),Math.max(1,evidenceEnd-Date.now()));
+          if(info && info.size>16*1024*1024) {await bounded(rm(path),Math.max(1,evidenceEnd-Date.now()));report.capture='size-limit';}
+          else if(info) await bounded(chmod(path,0o600),Math.max(1,evidenceEnd-Date.now()));
         }
         report.artifacts=artifacts;
-      } else if(artifacts) { if(w.artifacts?.trace)await bounded(context.tracing.stop(),LIMITS.cleanupMs); await rm(artifacts,{recursive:true,force:true}); }
+      } else if(artifacts) { if(w.artifacts?.trace)await bounded(context.tracing.stop(),LIMITS.cleanupMs); await bounded(rm(artifacts,{recursive:true,force:true}),Math.max(1,evidenceEnd-Date.now())); }
     }catch{report.capture='capture-failed';}
     if(context) {
       try { await bounded(context.close(),LIMITS.cleanupMs); }
       catch { poison(); report.cleanup='termination-unconfirmed; restart-required'; }
     }
-    if(temporary && !report.cleanup) await rm(profile,{recursive:true,force:true}).catch(()=>{report.cleanup='profile-cleanup-failed';});
+    if(temporary && !report.cleanup) await bounded(rm(profile,{recursive:true,force:true}),LIMITS.cleanupMs).catch(()=>{report.cleanup='profile-cleanup-failed';});
   }
   report.durationMs=Date.now()-began;
   return report;

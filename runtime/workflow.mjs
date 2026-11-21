@@ -11,6 +11,7 @@ export function validateTarget(t) {
   fields(t, [], ['role', 'name', 'label', 'testId', 'css']);
   if (['role','label','testId','css'].filter(k => k in t).length !== 1 || ('name' in t && !('role' in t))) invalid();
   Object.values(t).forEach(str);
+  if (t.css && (/>>|internal:|^[a-zA-Z-]+=/.test(t.css))) invalid();
 }
 export function validateWorkflow(w) {
   if (Buffer.byteLength(JSON.stringify(w)) > LIMITS.bytes) invalid();

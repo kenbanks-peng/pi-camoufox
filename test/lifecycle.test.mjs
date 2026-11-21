@@ -10,6 +10,7 @@ async function harness(prepare, entries = [], launchTimeout) {
   let source = stripTypeScriptTypes(await readFile(new URL('../index.ts', import.meta.url), 'utf8'));
   source = source.replace('import { prepareCamoufox } from "./runtime/camoufox.mjs";',
     prepare ? 'const prepareCamoufox = globalThis.lifecyclePrepare;' : 'import { prepareCamoufox } from ' + JSON.stringify(new URL('../runtime/camoufox.mjs', import.meta.url).href) + ';');
+  source = source.replaceAll(/from "(\.\/runtime\/[^"]+)"/g, (_m, path) => 'from ' + JSON.stringify(new URL('../' + path.slice(2), import.meta.url).href));
   source = source.replace('import { Type } from "typebox";', 'const Type = new Proxy({}, { get: () => (...args) => args });');
   source = source.replace('const observedPages =', 'pi.testPage = ensurePage; const observedPages =');
   if (launchTimeout) source = source.replace("timeout: 30_000,", "timeout: " + launchTimeout + ",");
@@ -26,7 +27,7 @@ async function harness(prepare, entries = [], launchTimeout) {
   extension(pi);
   const ctx = { sessionManager: { getEntries: () => entries }, ui: { notify() {} } };
   await events.get('session_start')({}, ctx);
-  return { pi, entries, active: () => active, call: (n, p = {}) => tools.get('browser_' + n).execute('test', p),
+  return { pi, entries, active: () => active, call: (n, p = {}, signal) => tools.get('browser_' + n).execute('test', p, signal, undefined, {cwd:process.cwd()}),
     command: s => command(s, ctx), shutdown: () => events.get('session_shutdown')() };
 }
 
@@ -207,4 +208,16 @@ test('network bounds, oldest-first tail, filters and whole-buffer drain', async 
   assert.equal((await h.call('network', { urlFilter: '/100', status: 201, limit: 2 })).details.entries.length, 2);
   assert.equal((await h.call('network')).details.entries.length, 0);
   await h.shutdown();
+});
+
+test('workflow queued cancellation and expiry return behind blocked primitive and never launch',async()=>{
+ const f=fake(),h=await harness(f.prepare);await h.command('on');
+ const release=f.hold();const primitive=h.call('eval',{expression:'42'});
+ await new Promise(r=>setImmediate(r));
+ const controller=new AbortController();
+ const workflow={version:1,start:{mode:'fresh'},overallMs:30,steps:[{action:'goto',url:'http://localhost/'}]};
+ const canceled=h.call('run',{workflow},controller.signal);controller.abort();
+ assert.equal((await canceled).details.category,'canceled');
+ assert.equal((await h.call('run',{workflow})).details.category,'timeout');
+ release();await primitive;await h.call('console');assert.equal(f.contexts.length,1);await h.shutdown();
 });

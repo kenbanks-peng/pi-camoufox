@@ -1,4 +1,4 @@
-import { readFile, realpath } from 'node:fs/promises';
+import { open, realpath } from 'node:fs/promises';
 import { join, sep } from 'node:path';
 import { fields, validateWorkflow, LIMITS } from './workflow.mjs';
 export async function loadWorkflow(root,name,inputs={},env=process.env) {
@@ -6,7 +6,14 @@ export async function loadWorkflow(root,name,inputs={},env=process.env) {
   const directory=await realpath(join(root,'.pi/browser-workflows'));
   const file=await realpath(join(directory,name+'.json'));
   if(!file.startsWith(directory+sep))throw Error('invalid-workflow');
-  const bytes=await readFile(file);
+  const handle=await open(file,'r');
+  let bytes;
+  try {
+    if (!(await handle.stat()).isFile()) throw Error('invalid-workflow');
+    const buffer=Buffer.alloc(LIMITS.bytes+1);
+    const result=await handle.read(buffer,0,buffer.length,0);
+    bytes=buffer.subarray(0,result.bytesRead);
+  } finally { await handle.close(); }
   if(bytes.length>LIMITS.bytes)throw Error('invalid-workflow');
   const source=JSON.parse(bytes.toString());
   fields(source,['version','parameters','workflow']);

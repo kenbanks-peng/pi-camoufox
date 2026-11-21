@@ -13,3 +13,5 @@ Tests use temporary profiles and loopback HTTP only. Browser test files run seri
 Observed on supported macOS Camoufox: an unconsumed finite local fetch response completed with HTTP 200/requestfinished, as did the consumed response. Socket destruction produced requestfailed. No general claim about abandoned streaming bodies or Chromium ERR_ABORTED applies. Request/response allHeaders are awaited; stale callbacks are discarded immediately before buffer insertion.
 
 Page errors are exercised by a document script throwing on navigation. An error scheduled from Playwright evaluation did not emit pageerror in this environment.
+
+Workflow coverage: workflow.test.mjs (contract, identity, semantic resolution, owned lifecycle, named loading); workflow-integration.test.mjs (local inline/named login, safe failures, artifacts and fresh runs). Run npm run test:integration with the documented existing runtime; skips are not integration passes. Installed-package smoke: node test/package-smoke.mjs.
