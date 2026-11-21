@@ -31,3 +31,18 @@ test('launch timeout fails closed and late context is closed',async()=>{
  const r=await runWorkflow(flow(),{deadline:Date.now()+10,poison:()=>poisoned=true,prepare:async()=>({options:{},firefox:{launchPersistentContext:async()=>{await new Promise(r=>setTimeout(r,30));return {close:async()=>closed=true};}}})});
  assert.equal(r.category,'timeout');assert.equal(poisoned,true);await new Promise(r=>setTimeout(r,40));assert.equal(closed,true);
 });
+
+test('evidence allowlists metadata and capture failures preserve primary failure',async()=>{
+ const page=new EventEmitter(),context=new EventEmitter();
+ page.locator=()=>({click:async()=>{
+ page.emit('console',{type:()=> 'private-console-message',text:()=> 'credential'});
+ page.emit('response',{request:()=>({method:()=> 'credential',resourceType:()=> 'credential'}),status:()=> 'credential'});
+ throw Error('credential');
+ }});
+ page.screenshot=async()=>{throw Error('credential');};
+ context.pages=()=>[page];context.close=async()=>{};context.tracing={start:async()=>{},stop:async()=>{throw Error('credential');}};
+ const w=flow();w.artifacts={screenshot:true,trace:true};
+ const r=await runWorkflow(w,{poison:()=>assert.fail(),prepare:async()=>({options:{},versions:{},firefox:{launchPersistentContext:async()=>context}})});
+ assert.equal(r.category,'execution-failed');assert.equal(r.capture,'capture-failed');assert.ok(!JSON.stringify(r).includes('credential'));
+ assert.deepEqual(r.evidence,{console:{other:1},network:[{method:'OTHER',resourceType:'other',status:0}]});
+});

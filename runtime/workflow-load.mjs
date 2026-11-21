@@ -18,10 +18,12 @@ export async function loadWorkflow(root,name,inputs={},env=process.env) {
   const source=JSON.parse(bytes.toString());
   fields(source,['version','parameters','workflow']);
   if(source.version!==1||!Array.isArray(source.parameters))throw Error('invalid-workflow');
+  if (!inputs || typeof inputs!=='object' || Array.isArray(inputs)) throw Error('invalid-workflow');
   const values=new Map(), secrets=new Set();
   for(const p of source.parameters){
     fields(p,['name','type'],['secret']);
     if(typeof p.name!=='string'||values.has(p.name)||!['string','number','boolean'].includes(p.type)||('secret'in p&&typeof p.secret!=='boolean'))throw Error('invalid-workflow');
+    if (!Object.hasOwn(inputs,p.name)) throw Error('invalid-workflow');
     let v=inputs[p.name];
     if(p.secret) {
       if(p.type!=='string')throw Error('invalid-workflow');

@@ -14,6 +14,7 @@ try {
  await writeFile(join(installed,'smoke-extension.mjs'),stripTypeScriptTypes(await fs.readFile(join(installed,'index.ts'),'utf8')));
  // Reuse feature integration suite against installed modules, outside checkout.
  let source=await (await import('node:fs/promises')).readFile(new URL('./workflow-integration.test.mjs',import.meta.url),'utf8');
+ source=source.replaceAll('../runtime/camoufox.mjs','./node_modules/@npm-ken/pi-camoufox/runtime/camoufox.mjs').replaceAll('../runtime/workflow.mjs','./node_modules/@npm-ken/pi-camoufox/runtime/workflow.mjs');
  source=source.replaceAll('../index.ts','./node_modules/@npm-ken/pi-camoufox/smoke-extension.mjs').replaceAll('../runtime/workflow-run.mjs','./node_modules/@npm-ken/pi-camoufox/runtime/workflow-run.mjs');
  await writeFile(join(root,'smoke.mjs'),source);
  execFileSync(process.execPath,['--test',join(root,'smoke.mjs')],{cwd:root,stdio:'inherit'});

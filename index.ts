@@ -329,6 +329,7 @@ export default function browserExtension(pi: ExtensionAPI) {
       const invocation = Date.now();
       let workflow;
       try {
+        if (Object.keys(params).some(k => !["workflow", "name", "parameters"].includes(k))) throw Error();
         if ((params.workflow === undefined) === (params.name === undefined) ||
             (params.workflow !== undefined && params.parameters !== undefined)) throw Error();
         workflow = params.name ? await bounded(loadWorkflow(root, params.name, params.parameters), 5000, signal) : validateWorkflow(params.workflow);

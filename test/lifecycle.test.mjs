@@ -6,7 +6,7 @@ import { readFile, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-async function harness(prepare, entries = [], launchTimeout) {
+async function harness(prepare, entries = [], launchTimeout, workflowRun) {
   let source = stripTypeScriptTypes(await readFile(new URL('../index.ts', import.meta.url), 'utf8'));
   source = source.replace('import { prepareCamoufox } from "./runtime/camoufox.mjs";',
     prepare ? 'const prepareCamoufox = globalThis.lifecyclePrepare;' : 'import { prepareCamoufox } from ' + JSON.stringify(new URL('../runtime/camoufox.mjs', import.meta.url).href) + ';');
@@ -14,6 +14,8 @@ async function harness(prepare, entries = [], launchTimeout) {
   source = source.replace('import { Type } from "typebox";', 'const Type = new Proxy({}, { get: () => (...args) => args });');
   source = source.replace('const observedPages =', 'pi.testPage = ensurePage; const observedPages =');
   if (launchTimeout) source = source.replace("timeout: 30_000,", "timeout: " + launchTimeout + ",");
+  if (workflowRun) source = source.replace(/import \{ runWorkflow, bounded \} from [^;]+;/, 'import { bounded } from ' + JSON.stringify(new URL('../runtime/workflow-run.mjs', import.meta.url).href) + '; const runWorkflow = globalThis.lifecycleWorkflowRun;');
+  globalThis.lifecycleWorkflowRun = workflowRun;
   globalThis.lifecyclePrepare = prepare;
   const { default: extension } = await import('data:text/javascript;base64,' + Buffer.from(source + '\n//' + Math.random()).toString('base64'));
   const tools = new Map(), events = new Map();
@@ -220,4 +222,14 @@ test('workflow queued cancellation and expiry return behind blocked primitive an
  assert.equal((await canceled).details.category,'canceled');
  assert.equal((await h.call('run',{workflow})).details.category,'timeout');
  release();await primitive;await h.call('console');assert.equal(f.contexts.length,1);await h.shutdown();
+});
+
+test('unconfirmed workflow cleanup rejects all subsequent browser operations until fresh instance',async()=>{
+ const h=await harness(fake().prepare,[],undefined,async (_w,{poison})=>{poison();return {category:'timeout',cleanup:'termination-unconfirmed; restart-required'};});
+ await h.command('on');
+ const w={version:1,start:{mode:'fresh'},steps:[{action:'goto',url:'http://localhost/'}]};
+ assert.equal((await h.call('run',{workflow:w})).details.category,'timeout');
+ assert.equal((await h.call('run',{workflow:w})).details.category,'restart-required');
+ await assert.rejects(h.call('eval',{expression:'42'}),/fresh extension instance/);
+ await assert.rejects(h.call('close'),/fresh extension instance/);
 });
