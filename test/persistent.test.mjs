@@ -15,7 +15,7 @@ test('extension persistent storage, modes, page reuse and single listeners', { s
   source = source.replace('const observedPages =', 'pi.testPage = ensurePage; const observedPages =');
   const { default: extension } = await import('data:text/javascript;base64,' + Buffer.from(source).toString('base64'));
   const profile = await mkdtemp(join(tmpdir(), 'browser-persistent-'));
-  const saved = { profile: process.env.PI_BROWSER_PROFILE, headful: process.env.PI_BROWSER_HEADFUL };
+  const saved = { profile: process.env.PI_BROWSER_PROFILE, headful: process.env.PI_BROWSER_HEADED };
   const server = createServer((_req, res) => { res.setHeader('Content-Type', 'text/html'); res.end('<title>Persistence fixture</title><input id="input"><button>OK</button>'); });
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   const url = 'http://127.0.0.1:' + server.address().port;
@@ -37,7 +37,7 @@ test('extension persistent storage, modes, page reuse and single listeners', { s
   try {
     process.env.PI_BROWSER_PROFILE = profile;
     for (const [index, headful] of [false, true, false].entries()) {
-      if (headful) process.env.PI_BROWSER_HEADFUL = '1'; else delete process.env.PI_BROWSER_HEADFUL;
+      if (headful) process.env.PI_BROWSER_HEADED = '1'; else delete process.env.PI_BROWSER_HEADED;
       tools = new Map();
       const pi = { registerTool: t => tools.set(t.name, t), on() {}, registerCommand() {} };
       extension(pi);
@@ -77,7 +77,7 @@ test('extension persistent storage, modes, page reuse and single listeners', { s
   } finally {
     await tools?.get('browser_close')?.execute('cleanup', {});
     server.close();
-    for (const [key, value] of [['PI_BROWSER_PROFILE', saved.profile], ['PI_BROWSER_HEADFUL', saved.headful]]) {
+    for (const [key, value] of [['PI_BROWSER_PROFILE', saved.profile], ['PI_BROWSER_HEADED', saved.headful]]) {
       if (value === undefined) delete process.env[key]; else process.env[key] = value;
     }
     await rm(profile, { recursive: true, force: true });

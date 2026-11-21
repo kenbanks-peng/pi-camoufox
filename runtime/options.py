@@ -42,7 +42,12 @@ def main():
     from camoufox.server import to_camel_case_dict
     # Redirect incidental package output away from the JSON protocol.
     with contextlib.redirect_stdout(sys.stderr):
+        # Keep real Canvas/WebGL readback instead of the detectable privacy
+        # placeholder. Match the host OS so the generated identity is less
+        # likely to contradict the pixels rendered by this machine.
+        host_os = {'darwin': 'macos', 'win32': 'windows', 'linux': 'linux'}[sys.platform]
         options = launch_options(executable_path=str(binary), headless=headless,
+                                 os=host_os, canvas_noise=False, block_webgl=False,
                                  addons=[], exclude_addons=list(DefaultAddons), geoip=False)
     print(json.dumps(dict(options=to_camel_case_dict(options), driver=str(driver), versions=versions)))
 

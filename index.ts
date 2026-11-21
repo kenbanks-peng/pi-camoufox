@@ -20,7 +20,7 @@
  *
  * Driver types only come from npm; runtime uses Python-bundled Playwright.
  * Setup: see runtime/README.md. Explicit installed Python and binary required.
- * PI_BROWSER_HEADFUL enables a visible window; PI_BROWSER_PROFILE overrides
+ * PI_BROWSER_HEADED enables a visible window; PI_BROWSER_PROFILE overrides
  * the Browser-only persistent profile. Never point it at a Chromium profile.
  */
 
@@ -73,6 +73,7 @@ const BROWSER_TOOL_NAMES = [
   "browser_close",
 ];
 const ENABLED_ENTRY_TYPE = "browser-enabled";
+const MODE_ENTRY_TYPE = "browser-mode";
 const KEEP_HEADERS = new Set([
   "authorization",
   "apikey",
@@ -142,7 +143,8 @@ export default function browserExtension(pi: ExtensionAPI) {
   const profileDir =
     process.env.PI_BROWSER_PROFILE ??
     join(dataHome && isAbsolute(dataHome) ? dataHome : join(homedir(), ".local", "share"), "pi-camoufox", "profile");
-  const headless = !process.env.PI_BROWSER_HEADFUL;
+  let modeOverride: boolean | undefined;
+  const isHeadless = () => modeOverride ?? !process.env.PI_BROWSER_HEADED;
 
   const observedPages = new WeakSet<Page>();
 
@@ -160,7 +162,7 @@ export default function browserExtension(pi: ExtensionAPI) {
     if (page && !page.isClosed()) return page;
 
     if (!context) {
-      const { firefox, options, warnings } = await prepareBrowser({ headless });
+      const { firefox, options, warnings } = await prepareBrowser({ headless: isHeadless() });
       if (warnings) console.warn(warnings);
       context = await firefox.launchPersistentContext(profileDir, {
         ...options,
@@ -303,7 +305,12 @@ export default function browserExtension(pi: ExtensionAPI) {
   // session has no entries, so we default to off).
   pi.on("session_start", async (_event, ctx) => {
     let want = false;
+    modeOverride = undefined;
     for (const entry of ctx.sessionManager.getEntries()) {
+      if (entry.type === "custom" && entry.customType === MODE_ENTRY_TYPE) {
+        const data = entry.data as { headless?: boolean } | undefined;
+        if (typeof data?.headless === "boolean") modeOverride = data.headless;
+      }
       if (entry.type === "custom" && entry.customType === ENABLED_ENTRY_TYPE) {
         const data = entry.data as { on?: boolean } | undefined;
         if (data && typeof data.on === "boolean") want = data.on;
@@ -347,7 +354,7 @@ export default function browserExtension(pi: ExtensionAPI) {
       const queued = serialize(async () => {
         started = true; notifyStarted();
         if (abandoned || signal?.aborted || Date.now() >= deadline) return { version: 1, category: signal?.aborted ? "canceled" : "timeout" };
-        const details = await runWorkflow(workflow, { signal, deadline, diagnosticProfile: profileDir, poison: () => { poisoned = true; } });
+        const details = await runWorkflow(workflow, { signal, deadline, headless: isHeadless(), diagnosticProfile: profileDir, poison: () => { poisoned = true; } });
         details.source = params.name ? { kind: "named", name: params.name } : { kind: "inline" };
         details.queueWaitMs = Math.max(0, Date.now() - invocation - details.durationMs);
         return details;
@@ -371,7 +378,7 @@ export default function browserExtension(pi: ExtensionAPI) {
     description:
       "Navigate the persistent Browser to a URL. Returns final URL and HTTP status. Cookies + localStorage persist across calls.",
     promptSnippet:
-      "Open a URL in a persistent headless browser to inspect a live web app's DOM, storage, network, and console — instead of asking the user to copy from devtools",
+      "Open a URL in a persistent browser to inspect a live web app's DOM, storage, network, and console — instead of asking the user to copy from devtools",
     promptGuidelines: [
       "When debugging a frontend issue (broken auth, failed requests, missing tokens, JS errors, form not working, blank screen), prefer driving the live app with browser_goto + browser_eval + browser_console + browser_network instead of asking the user to copy-paste from devtools.",
       "When the user reports 'works in browser, fails here' or 'I tried X and it didn't work', use browser_goto to reproduce the exact flow yourself before forming a hypothesis from source alone.",
@@ -644,7 +651,7 @@ export default function browserExtension(pi: ExtensionAPI) {
     label: "Browser Close",
     description: "Close the persistent browser context. Next browser_* call relaunches.",
     promptSnippet:
-      "Tear down the headless browser (rarely needed; auto-cleans on session end)",
+      "Tear down the browser (rarely needed; auto-cleans on session end)",
     parameters: Type.Object({}),
     async execute() {
       return serialize(async () => {
@@ -656,12 +663,23 @@ export default function browserExtension(pi: ExtensionAPI) {
 
   pi.registerCommand("browser", {
     description:
-      "Browser tools: '/browser on' to enable, '/browser off' to disable + close, bare '/browser' for status",
+      "Browser tools: on, off, headed, headless; bare /browser for status and mode",
     handler: async (args, ctx) => {
       const cmd = (args || "").trim().toLowerCase();
+      if (cmd === "headed" || cmd === "headless") {
+        await serialize(async () => {
+          const headless = cmd === "headless";
+          if (headless !== isHeadless()) await teardown();
+          modeOverride = headless;
+          pi.appendEntry(MODE_ENTRY_TYPE, { headless });
+          await enable();
+        }, true);
+        ctx.ui.notify(`browser tools enabled (${cmd})`, "info");
+        return;
+      }
       if (cmd === "on" || cmd === "enable") {
         await serialize(enable, true);
-        ctx.ui.notify("browser tools enabled", "info");
+        ctx.ui.notify(`browser tools enabled (${isHeadless() ? "headless" : "headed"})`, "info");
         return;
       }
       if (cmd === "off" || cmd === "disable" || cmd === "close" || cmd === "kill") {
@@ -677,7 +695,7 @@ export default function browserExtension(pi: ExtensionAPI) {
       const toolState = enabled ? "enabled" : "disabled (run /browser on)";
       const procState =
         page && !page.isClosed() ? `, open at ${page.url()}` : "";
-      ctx.ui.notify(`browser tools: ${toolState}${procState}`, "info");
+      ctx.ui.notify(`browser tools: ${toolState}, ${isHeadless() ? "headless" : "headed"}${procState}`, "info");
     },
   });
 

@@ -23,14 +23,21 @@ Optional overrides:
 - `PI_BROWSER_PYTHON`: Python interpreter path or command.
 - `PI_BROWSER_EXECUTABLE`: installed browser executable path or command.
 - `PI_BROWSER_PROFILE`: persistent profile directory.
-- `PI_BROWSER_HEADFUL`: any nonempty value enables a visible window.
+- `PI_BROWSER_HEADED`: any nonempty value enables a visible window.
 
 ## Use
 
-`/browser on` enables the eight `browser_*` tools; `/browser` shows status;
-`/browser off` disables tools and closes the context. Enabling does not launch
-the browser until a page tool runs. Tools serialize page operations; the enable
-bit persists within the session. `browser_close` allows later relaunch;
+- `/browser`: show status and selected mode.
+- `/browser off`: disable tools and close the browser.
+- `/browser on`: enable tools using the last mode; `PI_BROWSER_HEADED`
+  takes precedence unless a session override is set.
+- `/browser headed` / `/browser headless`: enable tools and override the
+  environment's mode for this session.
+
+Enabling launches lazily on the next page tool call. Changing modes closes the
+running browser; the next call relaunches it. Mode overrides and the enable bit
+survive `/reload`, but not a new session. Modes apply to workflows too.
+Tools serialize page operations. `browser_close` allows later relaunch;
 shutdown closes the context without deleting storage.
 
 Cookies, localStorage and IndexedDB persist in
@@ -42,10 +49,13 @@ to override it. The profile includes browser-managed caches. Old profiles under
 A fresh directory starts empty, but is not automatically deleted. Chromium profiles, migration, concurrent profile use,
 and cross-browser/profile-version compatibility are unsupported.
 
-Default: headless, 1280×800 viewport. Set `PI_BROWSER_HEADFUL=1` before starting
+Default: headless, 1280×800 viewport. Set `PI_BROWSER_HEADED=1` before starting
 pi for a visible window; unset it for headless (any nonempty value enables it).
 Fingerprints are generated per launch; storage persistence does not promise a
-stable fingerprint. The active page is reused or replaced if closed.
+stable fingerprint. Canvas/WebGL readback randomization is disabled and the
+OS identity matches the host: sites can fingerprint rendering rather than see
+a privacy placeholder. This remains an automated browser; CAPTCHA avoidance
+is not guaranteed. The active page is reused or replaced if closed.
 
 Console/network buffers are bounded and drained by default (the whole buffer,
 not just matching rows). Network headers require `verbose` or `includeHeaders`.

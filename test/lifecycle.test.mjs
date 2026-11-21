@@ -27,9 +27,10 @@ async function harness(prepare, entries = [], launchTimeout, workflowRun) {
     appendEntry: (customType, data) => entries.push({ type: 'custom', customType, data }),
   };
   extension(pi);
-  const ctx = { sessionManager: { getEntries: () => entries }, ui: { notify() {} } };
+  const notifications = [];
+  const ctx = { sessionManager: { getEntries: () => entries }, ui: { notify: message => notifications.push(message) } };
   await events.get('session_start')({}, ctx);
-  return { pi, entries, active: () => active, call: (n, p = {}, signal) => tools.get('browser_' + n).execute('test', p, signal, undefined, {cwd:process.cwd()}),
+  return { pi, entries, notifications, active: () => active, call: (n, p = {}, signal) => tools.get('browser_' + n).execute('test', p, signal, undefined, {cwd:process.cwd()}),
     command: s => command(s, ctx), shutdown: () => events.get('session_shutdown')() };
 }
 
@@ -65,6 +66,57 @@ function fake() {
     return () => { pending = null; resolve(42); };
   } };
 }
+
+test('headed environment, session overrides, reload, status and lazy mode switches', async () => {
+  const saved = process.env.PI_BROWSER_HEADED;
+  const instances = [];
+  try {
+    delete process.env.PI_BROWSER_HEADED;
+    const f = fake(), modes = [], workflowModes = [];
+    const prepare = async ({ headless }) => { modes.push(headless); return f.prepare(); };
+    const workflowRun = async (_w, { headless }) => { workflowModes.push(headless); return { category: 'success' }; };
+    const h = await harness(prepare, [], undefined, workflowRun); instances.push(h);
+    await h.command('');
+    assert.match(h.notifications.at(-1), /disabled.*headless/);
+    process.env.PI_BROWSER_HEADED = '0'; // Any nonempty value means headed.
+    await h.command('on');
+    assert.equal(f.contexts.length, 0);
+    await h.call('eval', { expression: '42' });
+    assert.deepEqual(modes, [false]);
+    await h.command('headed'); // Same mode sets override without closing.
+    assert.equal(f.contexts[0].closes, 0);
+    const release = f.hold();
+    const running = h.call('eval', { expression: '42' });
+    await new Promise(r => setImmediate(r));
+    const switchMode = h.command('headless');
+    const next = h.call('eval', { expression: '42' });
+    assert.equal(f.contexts[0].closes, 0);
+    release(); await running; await switchMode; await next;
+    assert.equal(f.contexts[0].closes, 1);
+    assert.deepEqual(modes, [false, true]);
+    await h.command('off'); await h.command('on');
+    await h.call('eval', { expression: '42' });
+    assert.equal(modes.at(-1), true); // Override beats environment.
+    await h.call('run', { workflow: { version: 1, start: { mode: 'fresh' },
+      steps: [{ action: 'goto', url: 'http://localhost/' }] } });
+    assert.deepEqual(workflowModes, [true]);
+    await h.command(''); assert.match(h.notifications.at(-1), /enabled, headless/);
+    const restored = await harness(prepare, [...h.entries]); instances.push(restored);
+    await restored.call('eval', { expression: '42' }); assert.equal(modes.at(-1), true);
+    await restored.command('headed'); await restored.command('off');
+    delete process.env.PI_BROWSER_HEADED;
+    const offRestored = await harness(prepare, [...restored.entries]); instances.push(offRestored);
+    await offRestored.command(''); assert.match(offRestored.notifications.at(-1), /disabled.*headed/);
+    await offRestored.command('on'); await offRestored.call('eval', { expression: '42' });
+    assert.equal(modes.at(-1), false);
+    const fresh = await harness(prepare); instances.push(fresh);
+    await fresh.command('on'); await fresh.call('eval', { expression: '42' });
+    assert.equal(modes.at(-1), true); // New session discards overrides.
+  } finally {
+    for (const h of instances) await h.shutdown();
+    if (saved === undefined) delete process.env.PI_BROWSER_HEADED; else process.env.PI_BROWSER_HEADED = saved;
+  }
+});
 
 test('persistent profile uses XDG data home with an explicit override', async () => {
   const keys = ['PI_BROWSER_PROFILE', 'XDG_DATA_HOME'];

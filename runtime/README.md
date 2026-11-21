@@ -46,13 +46,19 @@ disabled. No automatic installation or update is performed.
 
 Optional `PI_BROWSER_PYTHON` and `PI_BROWSER_EXECUTABLE` overrides accept paths
 or command names. `PI_BROWSER_PROFILE` overrides storage and
-`PI_BROWSER_HEADFUL` enables a visible window when nonempty.
+`PI_BROWSER_HEADED` enables a visible window when nonempty. `/browser headed`
+and `/browser headless` override it for the session (including `/reload`).
 `check:runtime` prepares options without launching; integration tests launch.
 
 Missing executables, browser metadata, unsupported pins and damaged bundled
-drivers fail with remediation. Canvas/WebGL privacy warnings are surfaced;
-no stealth/anti-bot success is claimed. Do not log generated options: they
-contain environment values. Fingerprints are mode-specific and fresh per launch.
+drivers fail with remediation. Canvas/WebGL readback randomization is explicitly
+disabled (`canvas_noise=False`), WebGL is enabled, and the generated OS identity
+matches the host. Sites can fingerprint rendering instead of seeing the privacy
+placeholder that can trigger bot warnings. Other setup warnings remain surfaced.
+This is still automated Camoufox with generated fingerprints, not stock Firefox;
+no stealth/anti-bot or CAPTCHA avoidance is guaranteed. Do not log generated
+options: they contain environment values. Fingerprints are mode-specific and
+fresh per launch.
 
 See the root README for profile, visible-mode and pi loading configuration,
 and test/README.md for reproducible local-browser checks and platform limits.

@@ -32,6 +32,9 @@ test('installed runtime: mode-specific options, persistent context and cleanup',
     for (const headless of [true, false]) {
       const { firefox, options, versions } = await prepareBrowser({ headless });
       assert.equal(options.headless, headless);
+      assert.equal(options.firefoxUserPrefs?.['webgl.disabled'], undefined);
+      assert.ok(!String(options.firefoxUserPrefs?.['privacy.baselineFingerprintingProtection.overrides'] ?? '')
+        .includes('+CanvasImageExtractionPrompt'));
       assert.equal(versions.playwright, '1.62.0');
       const context = await firefox.launchPersistentContext(profile, options);
       try {

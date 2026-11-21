@@ -26,11 +26,11 @@ function navigationFailure(error) {
 const methods = new Set(['GET','POST','PUT','DELETE','PATCH','HEAD','OPTIONS']);
 const resources = new Set(['document','stylesheet','image','media','font','script','xhr','fetch','websocket','other']);
 /** @param {any} w @param {any} options @returns {Promise<any>} */
-export async function runWorkflow(w,{signal,deadline,poison,diagnosticProfile,prepare=prepareBrowser,makeTemp=mkdtemp} = {}) {
+export async function runWorkflow(w,{signal,deadline,poison,diagnosticProfile,headless=!process.env.PI_BROWSER_HEADED,prepare=prepareBrowser,makeTemp=mkdtemp} = {}) {
   validateWorkflow(w);
   const began=Date.now();
   deadline ??= began+(w.overallMs??LIMITS.overallMs);
-  const report={version:1,identity:identity(w),configuration:{mode:w.start.mode,headless:!process.env.PI_BROWSER_HEADFUL,stepMs:w.stepMs??LIMITS.stepMs,overallMs:w.overallMs??LIMITS.overallMs},versions:{node:process.versions.node},outcomes:[],category:'success',evidence:{console:{},network:[]}};
+  const report={version:1,identity:identity(w),configuration:{mode:w.start.mode,headless,stepMs:w.stepMs??LIMITS.stepMs,overallMs:w.overallMs??LIMITS.overallMs},versions:{node:process.versions.node},outcomes:[],category:'success',evidence:{console:{},network:[]}};
   let context, profile, temporary=false, unsupported=false, page, artifacts, stepFailure;
   let rejectUnsupported;
   const unsupportedSignal=new Promise((_,reject)=>{rejectUnsupported=reject;});

@@ -38,6 +38,23 @@ test('run owns fresh profile and safe ordered failure reports',async()=>{
  await assert.rejects(import('node:fs/promises').then(fs=>fs.stat(f.profile)));
  }
 });
+test('workflow mode defaults to headed env and accepts an explicit override',async()=>{
+ const saved=process.env.PI_BROWSER_HEADED;
+ try{
+ for(const env of [undefined,'','1']){
+   if(env===undefined)delete process.env.PI_BROWSER_HEADED;else process.env.PI_BROWSER_HEADED=env;
+   for(const override of [undefined,true,false]){
+     const f=fake();let actual;
+     const options={prepare:async config=>{actual=config.headless;return f.prepare();}};
+     if(override!==undefined)options.headless=override;
+     const report=await runWorkflow(flow(),options);
+     assert.equal(report.category,'success');
+     assert.equal(actual,override??!env);
+     assert.equal(report.configuration.headless,actual);
+   }
+ }
+ }finally{if(saved===undefined)delete process.env.PI_BROWSER_HEADED;else process.env.PI_BROWSER_HEADED=saved;}
+});
 test('preparation deadline is bounded',async()=>{
  const report=await runWorkflow(flow(),{deadline:Date.now()+20,prepare:()=>new Promise(()=>{}),poison:()=>assert.fail()});
  assert.equal(report.category,'timeout');

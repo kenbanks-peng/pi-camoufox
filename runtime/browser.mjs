@@ -37,7 +37,7 @@ async function defaultPython() {
 export async function prepareBrowser({
   python = process.env.PI_BROWSER_PYTHON,
   executable = process.env.PI_BROWSER_EXECUTABLE,
-  headless = !process.env.PI_BROWSER_HEADFUL,
+  headless = !process.env.PI_BROWSER_HEADED,
 } = {}) {
   python ||= await defaultPython();
   if (typeof headless !== 'boolean') throw Error('Browser headless must be boolean (virtual modes unsupported).');
