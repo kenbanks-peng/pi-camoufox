@@ -1,6 +1,6 @@
 {
   "name": "@npm-ken/pi-camoufox",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "type": "module",
   "description": "Persistent Camoufox browser tools for pi using an explicitly configured Python-bundled Playwright driver.",
   "repository": {
@@ -11,7 +11,12 @@
   "bugs": {
     "url": "https://github.com/kenbanks-peng/pi-camoufox/issues"
   },
-  "keywords": ["pi-package", "pi-extension", "camoufox", "browser"],
+  "keywords": [
+    "pi-package",
+    "pi-extension",
+    "camoufox",
+    "browser"
+  ],
   "publishConfig": {
     "access": "public",
     "registry": "https://registry.npmjs.org/"
@@ -27,8 +32,8 @@
       "./index.ts"
     ]
   },
-  "dependencies": {
-    "typebox": "^1.4.7"
+  "peerDependencies": {
+    "typebox": "*"
   },
   "scripts": {
     "prepublishOnly": "npm run typecheck && npm run test:fast",
