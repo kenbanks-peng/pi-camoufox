@@ -10,16 +10,19 @@ and a separately configured Python/Camoufox installation. Verified on macOS
 arm64 with Node 26.13.1 and Python 3.12.13; Linux/Windows are untested.
 
 ```sh
-npm ci
+pi install npm:@npm-ken/pi-camoufox
+```
+
+Configure the runtime before launching pi:
+
+```sh
 # Configure an existing pinned installation; see runtime/README.md first.
 export PI_CAMOUFOX_PYTHON=/absolute/path/to/environment/bin/python
 export PI_CAMOUFOX_EXECUTABLE=/absolute/path/to/Camoufox.app/Contents/MacOS/camoufox
-npm run check:runtime
-pi -e ./index.ts
+pi
 ```
 
-For permanent loading, place this checkout under `~/.pi/agent/extensions/`
-(or `.pi/extensions/` in a project), install its dependencies there, and `/reload`.
+Run `/reload` if pi is already running after installation.
 Runtime variables must be set in pi's environment before launch.
 [Runtime setup](runtime/README.md) specifies exact Python/browser/driver pins
 and intentional installation commands. No implicit downloads, updates, cache
@@ -52,6 +55,33 @@ On tested macOS Camoufox, a finite unconsumed local fetch completed with HTTP
 requestfailed. This says nothing about abandoned streaming bodies.
 `browser_eval` accepts expressions, functions and IIFEs, returning serializable
 values. Screenshots are PNG files in the system temporary directory.
+
+## Develop and publish
+
+From a source checkout:
+
+```sh
+npm ci
+# Set the runtime variables above before launching.
+pi -e ./index.ts
+```
+
+The npm package includes only the extension and runtime helpers/docs (plus npm's
+standard README/package metadata), not tests, spikes, profiles, or browsers.
+Python and Camoufox must still be installed separately.
+
+To prepare a release, update `version` in `package.json` and `package-lock.json`, then:
+
+```sh
+npm run typecheck
+npm run test:fast
+npm pack --dry-run
+npm publish
+```
+
+Publishing targets public `@npm-ken/pi-camoufox` on npmjs.org and automatically
+runs typechecking and fast tests. It requires an authorized npm login and any
+account-required two-factor authentication. No publish occurs during setup.
 
 ## Verify
 
