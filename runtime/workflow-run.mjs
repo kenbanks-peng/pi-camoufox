@@ -1,4 +1,4 @@
-import { mkdtemp, rm, realpath, mkdir, stat, chmod } from 'node:fs/promises';
+import { mkdtemp, rm, realpath, stat, chmod } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { prepareCamoufox } from './camoufox.mjs';
@@ -98,7 +98,7 @@ export async function runWorkflow(w,{signal,deadline,poison,diagnosticProfile,pr
         }
         report.artifacts=artifacts;
       } else if(artifacts) { if(w.artifacts?.trace)await bounded(context.tracing.stop(),LIMITS.cleanupMs); await bounded(rm(artifacts,{recursive:true,force:true}),Math.max(1,evidenceEnd-Date.now())); }
-    }catch{report.capture='capture-failed';}
+    }catch{report.capture='capture-failed'; if(artifacts) report.artifacts=artifacts;}
     if(context) {
       try { await bounded(context.close(),LIMITS.cleanupMs); }
       catch { poison(); report.cleanup='termination-unconfirmed; restart-required'; }

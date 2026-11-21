@@ -345,7 +345,10 @@ export default function browserExtension(pi: ExtensionAPI) {
       const queued = serialize(async () => {
         started = true; notifyStarted();
         if (abandoned || signal?.aborted || Date.now() >= deadline) return { version: 1, category: signal?.aborted ? "canceled" : "timeout" };
-        return runWorkflow(workflow, { signal, deadline, diagnosticProfile: profileDir, poison: () => { poisoned = true; } });
+        const details = await runWorkflow(workflow, { signal, deadline, diagnosticProfile: profileDir, poison: () => { poisoned = true; } });
+        details.source = params.name ? { kind: "named", name: params.name } : { kind: "inline" };
+        details.queueWaitMs = Math.max(0, Date.now() - invocation - details.durationMs);
+        return details;
       });
       queued.catch(() => { notifyStarted(); });
       let details;
